@@ -1,7 +1,7 @@
 /* 
  * tsh - A tiny shell program with job control
  * 
- * <Put your name and ID here>
+ * Surya Singh 862033627
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -165,6 +165,39 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
+    char *argv[MAXARGS];
+    int bg;
+    pid_t pid;
+    sigset_t mask;
+
+    bg  = parseline(cmdline, argv);
+    if(!builtin_cmd(argv)){
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGCHLD);
+	sigprocmask(SIG_BLOCK, &mask, NULL);
+
+        if( (pid = fork()) == 0){
+		setpgid(0,0);
+		sigprocmask(SIG_UNBLOCK, &mask, NULL);
+		if(execvp(argv[0], argv) < 0){
+			printf("%s: Command not found.\n", argv[0]);
+			exit(0);
+		}	
+	}
+	else{
+		if(bg){
+			addjob(jobs, pid, BG, cmdline);
+		
+		}
+		else{
+			addjob(jobs, pid, FG, cmdline);
+		}
+		sigprocmask(SIG_UNBLOCK, &mask, NULL);
+		if(!bg){
+			waitfg(pid);
+		}    
+	}
+    }
     return;
 }
 
@@ -229,8 +262,19 @@ int parseline(const char *cmdline, char **argv)
  * builtin_cmd - If the user has typed a built-in command then execute
  *    it immediately.  
  */
-int builtin_cmd(char **argv) 
+int builtin_cmd(char **argv)
 {
+    if(strcmp(argv[0],"quit") == 0){
+	exit(0);
+    }
+    else if(strcmp(argv[0], "jobs") == 0){
+	listjobs(jobs);
+	return 1;
+    }
+    else if(!strcmp(argv[0], "bg")||!strcmp(argv[0], "fg")){
+	do_bgfg(argv);
+	return 1;
+    }
     return 0;     /* not a builtin command */
 }
 
@@ -239,6 +283,10 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
+    
+    if(!strcmp(argv[0], "fg")){
+	
+    } 
     return;
 }
 
@@ -247,6 +295,9 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+    while(pid == fgpid(jobs)){
+	sleep(0);
+    }
     return;
 }
 
@@ -273,6 +324,7 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+    
     return;
 }
 
